@@ -1,0 +1,19 @@
+{
+  "name": "maprender",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+      "test": "echo \"Error: no test specified\" && exit 1",
+      "start": "budo index.js --live -- -t babelify"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "babel": "^6.5.2",
+    "babel-cli": "^6.22.2",
+    "babel-preset-env": "^1.1.8",
+    "babelify": "^7.3.0",
+    "budo": "^9.4.5"
+  }
+}
