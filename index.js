@@ -105,9 +105,7 @@ function newVoronoi() {
     
     var voronoiDiag = createVoronoi(settings.sites);
     var voronoiPolys = voronoiDiag.polygons();
-    
-    var lineMaterial = new THREE.LineBasicMaterial( { color: 0x000000, linewidth: 3 } );
-    
+       
     var group = new THREE.Group();
     group.position.set(-2.5, -2.2, 0);
     var scale = 4.5;
@@ -121,37 +119,65 @@ function newVoronoi() {
             size: Math.random() * 0.4
         });
     }
+
+    var borderPoints = [];
+    var mapGeometry = new THREE.Geometry();
+    var mapMaterials = {
+        land: { index: 0 , material: new THREE.MeshPhongMaterial( { color: 0xcccaa1, side: THREE.DoubleSide } ) },
+        sea: { index: 1, material: new THREE.MeshPhongMaterial( { color: 0x8ec0ed, side: THREE.DoubleSide } ) }
+    };
+    var mapMaterial = new THREE.MultiMaterial( [ mapMaterials["land"].material, mapMaterials["sea"].material ] );
+
+    var sitesGeometry = new THREE.Geometry();
     
     voronoiPolys.map(
         function(poly, i) {
-            var shape = new THREE.Shape(poly.map(function (p) { return new THREE.Vector2(p[0], p[1]); }));
-            
-            var s = poly.data;
-            var pos = new THREE.Vector3(s[0],s[1], 0);
+            // convert vertices to vector3
+            var vertices = poly.map(function (p) { return new THREE.Vector3(p[0], p[1]); });
+
+            // push vertices to border points
+            for (var i = 0; i < vertices.length - 1; i++) {
+                borderPoints.push(vertices[i], vertices[i+1]);
+            }
+            // close loop
+            borderPoints.push(vertices[i], vertices[0]);
+
+            // get site position
+            var site = poly.data;
+            var sitePos = new THREE.Vector3(site[0],site[1], 0);
             var isLand = false;
+            sitesGeometry.vertices.push(sitePos);
             
             continents.map(function (c) {
-                isLand = c.center.distanceTo(pos) < c.size || isLand;
+                isLand = c.center.distanceTo(sitePos) < c.size || isLand;
             });
-        
-            var color = isLand ? 0xcccaa1 : 0x8ec0ed;
-            
-            var flat = new THREE.MeshPhongMaterial( { color: color, side: THREE.DoubleSide } );
-            var mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), flat);
-            
-            var points = shape.createPointsGeometry();
-            var line = new THREE.Line( points, lineMaterial );
-            line.position.set(0,0,0.000001);
-            line.visible = settings.showPolygons;
-            
-            group.add( mesh );
-            group.add( line );
+
+            var materialName = isLand ? "land" : "sea";
+            var materialIndex = mapMaterials[materialName].index;
+
+            // triangulate polygons for rendering
+            THREE.ShapeUtils.triangulate(vertices).map(function (triangle) {
+                var index = mapGeometry.vertices.length;
+                var normal = new THREE.Vector3(0, 0, 1);
+                var face = new THREE.Face3(index, index+1, index+2, normal);
+                face.materialIndex = materialIndex;
+                    
+                mapGeometry.vertices.push(triangle[0], triangle[1], triangle[2]);
+                mapGeometry.faces.push(face);
+            });
         });
-    
-    var sitesGeometry = new THREE.Geometry();
-    Array.prototype.push.apply(sitesGeometry.vertices, voronoiDiag.sites.map(function(s) {
-        return new THREE.Vector3(s[0], s[1], 0);
-    }));
+
+    var borderLineGeometry = new THREE.Geometry();
+    borderLineGeometry.vertices = borderPoints;
+
+    var lineMaterial = new THREE.LineBasicMaterial( { color: 0x000000, linewidth: 3 } );
+    var borderLine = new THREE.LineSegments( borderLineGeometry, lineMaterial );
+    borderLine.position.set(0,0,0.000001);
+    borderLine.visible = settings.showPolygons;
+    group.add( borderLine );
+
+    var mapMesh = new THREE.Mesh(mapGeometry, mapMaterial);
+    group.add(mapMesh);   
     
     var sitesPoints = new THREE.Points( sitesGeometry, new THREE.PointsMaterial( { size: 0.05 } ) );
     sitesPoints.visible = settings.showSites;

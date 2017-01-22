@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-      "test": "echo \"Error: no test specified\" && exit 1",
-      "start": "budo index.js --live -- -t babelify"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "budo index.js --live -- -t babelify"
   },
   "author": "",
   "license": "ISC",
@@ -15,5 +15,13 @@
     "babel-preset-env": "^1.1.8",
     "babelify": "^7.3.0",
     "budo": "^9.4.5"
+  },
+  "dependencies": {
+    "d3": "^4.4.3",
+    "exdat": "^0.6.2",
+    "fast-simplex-noise": "^3.2.0",
+    "seedrandom": "^2.4.2",
+    "stats.js": "^0.17.0",
+    "three": "^0.84.0"
   }
 }
