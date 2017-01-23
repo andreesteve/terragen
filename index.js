@@ -3,6 +3,9 @@ import Stats from "stats.js";
 import * as d3 from "d3";
 import seedrandom from "seedrandom";
 import * as dat from "exdat";
+import noise from "fast-simplex-noise";
+
+import Terrain from "./lib/terrain.js";
 
 var style = document.createElement("style");
 style.type = "text/css";
@@ -25,7 +28,8 @@ var container = document.body;
 var scene = new THREE.Scene();
 var camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 1, 1000 );
 
-camera.position.set( 0, 0, 5 );
+camera.position.set( 0, -2, 6 );
+camera.lookAt(new THREE.Vector3(0, 0, 0));
 scene.add( camera );
 
 var light = new THREE.PointLight( 0xffffff, 0.8 );
@@ -43,16 +47,23 @@ container.appendChild( stats.dom );
 function Settings() {
     this.seed = 0;
     this.islands = 5;
-    this.sites = 1000;
+    this.sites = 4000;
     this.showPolygons = true;
-    this.showSites = true;
+    this.showSites = false;
+    this.flat = false;
+    this.seaLevel = 0.3;
+    this.heightFrequency = 2.6;
 }
 var gui = new dat.GUI();
 var settings = new Settings();
-gui.add(settings, "sites", 0).step(50);
+gui.add(settings, "sites", 0).step(50).onFinishChange(newVoronoi);
 gui.add(settings, "islands", 0).step(1);
-gui.add(settings, "showPolygons");
-gui.add(settings, "showSites");
+gui.add(settings, "heightFrequency").step(0.01).onFinishChange(newVoronoi);
+gui.add(settings, "showPolygons").onFinishChange(function(v) { if (mesh) { mesh.border.visible = v; } });
+gui.add(settings, "showSites").onFinishChange(function(v) { if (mesh) { mesh.sites.visible = v; } });;
+gui.add(settings, "flat");
+gui.add(settings, "seaLevel", 0, 1).step(0.01).onFinishChange(newVoronoi);
+
 
 var width = 1;
 var height = 1;
@@ -94,97 +105,57 @@ function createVoronoi(nsites) {
     return diag;
 }
 
-var vGroup;
+var mesh;
 function newVoronoi() {
     var t0 = performance.now();
 
-    if (vGroup) {
-        scene.remove(vGroup);
-        vGroup = null;
-    }
-    
-    var voronoiDiag = createVoronoi(settings.sites);
-    var voronoiPolys = voronoiDiag.polygons();
-       
-    var group = new THREE.Group();
-    group.position.set(-2.5, -2.2, 0);
-    var scale = 4.5;
-    group.scale.set(scale,scale,scale);
-    scene.add(group);
-    
-    var continents = [];
-    for (var i = 0; i < settings.islands; i++) {
-        continents.push({
-            center: new THREE.Vector3(Math.random(), Math.random()),
-            size: Math.random() * 0.4
-        });
+    if (mesh) {
+        scene.remove(mesh.group);
     }
 
-    var borderPoints = [];
-    var mapGeometry = new THREE.Geometry();
-    var mapMaterials = {
-        land: { index: 0 , material: new THREE.MeshPhongMaterial( { color: 0xcccaa1, side: THREE.DoubleSide } ) },
-        sea: { index: 1, material: new THREE.MeshPhongMaterial( { color: 0x8ec0ed, side: THREE.DoubleSide } ) }
-    };
-    var mapMaterial = new THREE.MultiMaterial( [ mapMaterials["land"].material, mapMaterials["sea"].material ] );
-
-    var sitesGeometry = new THREE.Geometry();
+    var heightScale = 0.3;
     
-    voronoiPolys.map(
-        function(poly, i) {
-            // convert vertices to vector3
-            var vertices = poly.map(function (p) { return new THREE.Vector3(p[0], p[1]); });
-
-            // push vertices to border points
-            for (var i = 0; i < vertices.length - 1; i++) {
-                borderPoints.push(vertices[i], vertices[i+1]);
-            }
-            // close loop
-            borderPoints.push(vertices[i], vertices[0]);
-
-            // get site position
-            var site = poly.data;
-            var sitePos = new THREE.Vector3(site[0],site[1], 0);
-            var isLand = false;
-            sitesGeometry.vertices.push(sitePos);
+    var t = new Terrain();
+    var voronoiDiagram = createVoronoi(settings.sites);
+    var noiseGen = new noise({
+        frequency: settings.heightFrequency,
+        max: heightScale,
+        min: 0,
+        octaves: 2
+    });
+    
+    t.build(voronoiDiagram, {
+        flat: settings.flat,
+        
+        calculateHeight: function(x,y) {           
+            var h = noiseGen.scaled2D(x, y);
+            var l = 0.2;
             
-            continents.map(function (c) {
-                isLand = c.center.distanceTo(sitePos) < c.size || isLand;
-            });
+            var p = Math.min(1, x / l, y / l, Math.min(1 - x, l) / l, Math.min(1 - y, l) / l);
+            return h * p;        
+        },
+        
+        calculateColor: function(h) {
+            var color;
+            if (h > settings.seaLevel * heightScale) {
+                color = new THREE.Color(0xcccaa1);
+            } else {
+                color = new THREE.Color(0x8ec0ed);
+            }
+            return color;
+        }
+    });
 
-            var materialName = isLand ? "land" : "sea";
-            var materialIndex = mapMaterials[materialName].index;
-
-            // triangulate polygons for rendering
-            THREE.ShapeUtils.triangulate(vertices).map(function (triangle) {
-                var index = mapGeometry.vertices.length;
-                var normal = new THREE.Vector3(0, 0, 1);
-                var face = new THREE.Face3(index, index+1, index+2, normal);
-                face.materialIndex = materialIndex;
-                    
-                mapGeometry.vertices.push(triangle[0], triangle[1], triangle[2]);
-                mapGeometry.faces.push(face);
-            });
-        });
-
-    var borderLineGeometry = new THREE.Geometry();
-    borderLineGeometry.vertices = borderPoints;
-
-    var lineMaterial = new THREE.LineBasicMaterial( { color: 0x000000, linewidth: 3 } );
-    var borderLine = new THREE.LineSegments( borderLineGeometry, lineMaterial );
-    borderLine.position.set(0,0,0.000001);
-    borderLine.visible = settings.showPolygons;
-    group.add( borderLine );
-
-    var mapMesh = new THREE.Mesh(mapGeometry, mapMaterial);
-    group.add(mapMesh);   
+    mesh = t.createMesh();
+    mesh.border.visible = settings.showPolygons;
+    mesh.sites.visible = settings.showSites;
     
-    var sitesPoints = new THREE.Points( sitesGeometry, new THREE.PointsMaterial( { size: 0.05 } ) );
-    sitesPoints.visible = settings.showSites;
-    group.add(sitesPoints);
+    scene.add(mesh.group);
 
-    vGroup = group;
-
+    var scale = 4.5;
+    mesh.group.scale.set(scale,scale,scale);
+    mesh.group.position.set(-2.5, -2.2, 0);    
+    
     var t1 = performance.now();
     console.log("Voronoi generation took " + (t1 - t0) + " ms.");
 }
