@@ -21,19 +21,59 @@ window.addEventListener("keyup", function (e) {
     }
 });
 
+console.log(THREE.OrbitControls);
+
+var lastMouse;
+var cameraTarget = new THREE.Vector3(0, 0, 0);
+window.addEventListener("mousemove", function (e) {
+
+    e.preventDefault();
+
+    if ( e.buttons == 4 ) {
+        var diff = cameraTarget.clone().sub(camera.position);
+        diff.y = 0;
+        var radious = diff.length();
+
+        if (!lastMouse) {
+            lastMouse = { x:e.clientX, y:e.clientY, phi: camera.position.angleTo(new THREE.Vector3(0,0,1)), theta: Math.asin(camera.position.x / radious) };
+        }
+        
+        var theta = lastMouse.theta + ( ( e.clientY - lastMouse.y ) * Math.PI * 0.01 );
+        var phi = lastMouse.phi + ( ( e.clientX - lastMouse.x ) * 0.5 );
+
+        camera.position.x = radious * Math.sin( theta );
+        camera.position.z = radious * Math.cos( theta );
+
+        camera.lookAt(cameraTarget);
+        camera.updateMatrix();
+    } else {
+        lastMouse = null;
+    }
+});
+
+window.addEventListener("wheel", function (e) {
+    var direction = cameraTarget.clone().sub(camera.position);
+    var len = direction.length();
+    direction.normalize();
+    camera.position.add(direction.multiplyScalar(e.deltaY * -0.01 * Math.min(1, Math.pow(len, 5))));
+});
+
 //var rand = seedrandom("andre", { global: true });
 
 var container = document.body;
 
 var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 1, 1000 );
+var camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 0.1, 1000 );
 
-camera.position.set( 0, -2, 6 );
-camera.lookAt(new THREE.Vector3(0, 0, 0));
+camera.position.set( 0, 2, -2 );
+camera.lookAt(cameraTarget);
 scene.add( camera );
 
 var light = new THREE.PointLight( 0xffffff, 0.8 );
 camera.add( light );
+
+var grid = new THREE.GridHelper(2, 20);
+scene.add(grid);
 
 var renderer = new THREE.WebGLRenderer( { antialias: true } );
 renderer.setClearColor( 0xf0f0f0 );
@@ -46,24 +86,27 @@ container.appendChild( stats.dom );
 
 function Settings() {
     this.seed = 0;
-    this.islands = 5;
     this.sites = 4000;
-    this.showPolygons = true;
+    this.showPolygons = false;
     this.showSites = false;
     this.flat = false;
-    this.seaLevel = 0.3;
-    this.heightFrequency = 2.6;
+    this.seaLevel = 0.45;
+    this.heightFrequency = 1.2;
+    this.heightScale = 0.3;
 }
 var gui = new dat.GUI();
 var settings = new Settings();
 gui.add(settings, "sites", 0).step(50).onFinishChange(newVoronoi);
-gui.add(settings, "islands", 0).step(1);
+gui.add(settings, "heightScale", 0, 1).step(0.01);
 gui.add(settings, "heightFrequency").step(0.01).onFinishChange(newVoronoi);
 gui.add(settings, "showPolygons").onFinishChange(function(v) { if (mesh) { mesh.border.visible = v; } });
 gui.add(settings, "showSites").onFinishChange(function(v) { if (mesh) { mesh.sites.visible = v; } });;
-gui.add(settings, "flat");
+gui.add(settings, "flat").onFinishChange(makeFlat);
 gui.add(settings, "seaLevel", 0, 1).step(0.01).onFinishChange(newVoronoi);
 
+function makeFlat(f) {
+    if (mesh) { var g = mesh.map.geometry; if (!g.old) { g.old = g.vertices.map(function(v,i) { return v.y; }); } g.vertices.map(function (v, i) { if (f) { v.y = 0; } else { v.y = g.old[i]; } }); g.dynamic = g.verticesNeedUpdate = true; }
+}
 
 var width = 1;
 var height = 1;
@@ -112,35 +155,34 @@ function newVoronoi() {
     if (mesh) {
         scene.remove(mesh.group);
     }
-
-    var heightScale = 0.3;
-    
+   
     var t = new Terrain();
     var voronoiDiagram = createVoronoi(settings.sites);
     var noiseGen = new noise({
         frequency: settings.heightFrequency,
-        max: heightScale,
+        max: settings.heightScale,
         min: 0,
-        octaves: 2
+        octaves: 8,
+        persistence: 0.5
     });
     
     t.build(voronoiDiagram, {
-        flat: settings.flat,
         
         calculateHeight: function(x,y) {           
             var h = noiseGen.scaled2D(x, y);
             var l = 0.2;
             
             var p = Math.min(1, x / l, y / l, Math.min(1 - x, l) / l, Math.min(1 - y, l) / l);
-            return h * p;        
+            return h * (Math.pow(p, 0.5) || 0 );
         },
         
         calculateColor: function(h) {
             var color;
-            if (h > settings.seaLevel * heightScale) {
-                color = new THREE.Color(0xcccaa1);
+            var p = h / (settings.heightScale * 0xff);
+            if (h > settings.seaLevel * settings.heightScale) {
+                color = new THREE.Color(p * 0xcc, p * 0xca, p* 0xa1);
             } else {
-                color = new THREE.Color(0x8ec0ed);
+                color = new THREE.Color(p * 0x8e, p * 0xc0, p * 0xed);
             }
             return color;
         }
@@ -148,13 +190,15 @@ function newVoronoi() {
 
     mesh = t.createMesh();
     mesh.border.visible = settings.showPolygons;
-    mesh.sites.visible = settings.showSites;
+    mesh.sites.visible = settings.showSites;  
+    makeFlat(settings.flat);
     
     scene.add(mesh.group);
 
-    var scale = 4.5;
-    mesh.group.scale.set(scale,scale,scale);
-    mesh.group.position.set(-2.5, -2.2, 0);    
+    var scale = 5;
+//    mesh.group.rotateX(-Math.PI / 2);   
+    mesh.group.position.set(-0.5, 0, -0.5);
+//    mesh.group.scale.set(scale,scale,scale);    
     
     var t1 = performance.now();
     console.log("Voronoi generation took " + (t1 - t0) + " ms.");
@@ -162,7 +206,7 @@ function newVoronoi() {
 
 newVoronoi();
 
-function render() {
+function render() {   
     stats.begin();
 	renderer.render( scene, camera );
     stats.end();
