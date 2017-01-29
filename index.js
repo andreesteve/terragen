@@ -105,7 +105,24 @@ gui.add(settings, "flat").onFinishChange(makeFlat);
 gui.add(settings, "seaLevel", 0, 1).step(0.01).onFinishChange(newVoronoi);
 
 function makeFlat(f) {
-    if (mesh) { var g = mesh.map.geometry; if (!g.old) { g.old = g.vertices.map(function(v,i) { return v.y; }); } g.vertices.map(function (v, i) { if (f) { v.y = 0; } else { v.y = g.old[i]; } }); g.dynamic = g.verticesNeedUpdate = true; }
+    function mf(g) {
+        if (!g.old) {
+            g.old = g.vertices.map(function(v,i) {
+                return v.y;
+            });
+        }
+        g.vertices.map(function (v, i) {
+            if (f) { v.y = 0; } else { v.y = g.old[i]; }
+        });
+        
+        g.dynamic = g.verticesNeedUpdate = true;
+    }
+    
+    if (mesh) {
+        mf(mesh.map.geometry);
+        mf(mesh.sites.geometry);
+        mf(mesh.border.geometry);
+    }
 }
 
 var width = 1;
@@ -165,6 +182,8 @@ function newVoronoi() {
         octaves: 8,
         persistence: 0.5
     });
+
+    var seaHeight = settings.heightScale * settings.seaLevel;
     
     t.build(voronoiDiagram, {
         
@@ -173,14 +192,15 @@ function newVoronoi() {
             var l = 0.2;
             
             var p = Math.min(1, x / l, y / l, Math.min(1 - x, l) / l, Math.min(1 - y, l) / l);
-            return h * (Math.pow(p, 0.5) || 0 );
+            return Math.max( (h * (Math.pow(p, 0.5) || 0 )) - seaHeight, 0 );
         },
         
         calculateColor: function(h) {
             var color;
-            var p = h / (settings.heightScale * 0xff);
-            if (h > settings.seaLevel * settings.heightScale) {
-                color = new THREE.Color(p * 0xcc, p * 0xca, p* 0xa1);
+            var p = Math.max( h / ( (settings.heightScale - seaHeight) ), 0.5) / 0xff;
+
+            if (h > 0) {
+                color = new THREE.Color(p * 0xcc, p * 0xca, p * 0xa1);
             } else {
                 color = new THREE.Color(p * 0x8e, p * 0xc0, p * 0xed);
             }
