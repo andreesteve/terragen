@@ -21,8 +21,6 @@ window.addEventListener("keyup", function (e) {
     }
 });
 
-console.log(THREE.OrbitControls);
-
 var lastMouse;
 var cameraTarget = new THREE.Vector3(0, 0, 0);
 window.addEventListener("mousemove", function (e) {
@@ -184,7 +182,7 @@ function newVoronoi() {
     });
 
     var seaHeight = settings.heightScale * settings.seaLevel;
-    
+
     t.build(voronoiDiagram, {
         
         calculateHeight: function(x,y) {           
@@ -195,14 +193,50 @@ function newVoronoi() {
             return Math.max( (h * (Math.pow(p, 0.5) || 0 )) - seaHeight, 0 );
         },
         
-        calculateColor: function(h) {
+        calculateColor: function(h, x, y) {
             var color;
-            var p = Math.max( h / ( (settings.heightScale - seaHeight) ), 0.5) / 0xff;
+            var nh = h / (settings.heightScale - seaHeight);
+            var p = Math.max(nh, 0.5) / 0xff;
 
-            if (h > 0) {
-                color = new THREE.Color(p * 0xcc, p * 0xca, p * 0xa1);
+            var humidity =  (noiseGen.raw2D(10+x,10+y) + 1) / 2;
+
+            var biome = {
+                water: 0x1a3560,
+                scorched: 0x999999,
+                bare: 0xbbbbbb,
+                tundra: 0xddddbb,
+                snow: 0xf8f8f8,
+                taiga: 0xccd4bb,
+                shrubland: 0xc4ccbb,
+                temperateDesert: 0xe4e8ca,
+                temperateRainFlorest: 0xa4c4a8,
+                temperateDeciduousFlorest: 0xb4c9a9,
+                grassland: 0xc4d4aa,
+                tropicalRainForest: 0x9cbba9,
+                tropicalSeasonalForest: 0xa9cca4,
+                subtropicalDesert: 0xe9ddc7                
+            };
+            
+            // first dimension is height, second is humidity
+            var colorMap = [
+                // very dry,                   dry                 damp                                 wet                       very wet                            drenched
+                [ biome.subtropicalDesert, biome.grassland,       biome.tropicalSeasonalForest, biome.tropicalRainForest,        biome.tropicalRainForest,        biome.tropicalRainForest],   // height level 1
+                [ biome.temperateDesert,   biome.grassland,       biome.grassland,              biome.temperateDeciduousFlorest, biome.temperateDeciduousFlorest, biome.temperateRainFlorest], // height level 2
+                [ biome.temperateDesert,   biome.temperateDesert, biome.shrubland,              biome.shrubland,                 biome.taiga,                     biome.taiga],                // height level 3
+                [ biome.scorched,          biome.bare,            biome.tundra,                 biome.snow,                      biome.snow,                      biome.snow]                  // height level 4
+            ];
+
+            var heb = nh;
+            var hub = humidity;
+
+            var hei = heb < 1/4 ? 0 : heb < 2/4 ? 1 : heb < 3/4 ? 2 : 3;
+            var hui = hub < 1/6 ? 0 : hub < 2/6 ? 1 : hub < 3/6 ? 2 : hub < 4/6 ? 3 : hub < 5/6 ? 4 : 5;
+            
+            if (nh > 0) {               
+                color = new THREE.Color(colorMap[hei][hui]);
             } else {
-                color = new THREE.Color(p * 0x8e, p * 0xc0, p * 0xed);
+                // water
+                color = new THREE.Color(biome.water);
             }
             return color;
         }
