@@ -4,7 +4,7 @@ import * as d3 from "d3";
 import seedrandom from "seedrandom";
 import * as dat from "exdat";
 import noise from "fast-simplex-noise";
-import Terrain from "./lib/terrain.js";
+import Terrain from "../lib/terrain.js";
 
 var style = document.createElement("style");
 style.type = "text/css";

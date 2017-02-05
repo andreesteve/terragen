@@ -1,0 +1,6 @@
+src
+.tern-port
+.tern-project
+*~
+.babelrc
+docs
