@@ -1,39 +1,48 @@
 {
-    "name": "terragen",
-    "version": "0.0.1",
-    "description": "A voronoi based terrain generator library",
-    "main": "./dist/index.js",
-    "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
-        "start": "budo src/examples/render.js --live -- -t babelify",
-        "doc": "jsdoc src/lib/*.js -d docs",
-        "build": "babel src -d dist",
-        "prepublish": "npm run build"
-    },
-    "author": "Andre Esteve",
-    "license": "MIT",
-    "repository" : {
-        "type" : "git",
-        "url" : "https://github.com/andreesteve/terragen.git"
-    },
-    "bugs": {
-        "url" : "https://github.com/andreesteve/terragen/issues"
-    },
-    "keywords": ["map", "terrain", "generator", "map generator", "terrain generator", "voronoi"],
-    "devDependencies": {
-        "babel": "^6.5.2",
-        "babel-cli": "^6.22.2",
-        "babel-preset-env": "^1.1.8",
-        "babelify": "^7.3.0",
-        "budo": "^9.4.5",
-        "jsdoc": "^3.4.3"
-    },
-    "dependencies": {
-        "d3": "^4.4.3",
-        "exdat": "^0.6.2",
-        "fast-simplex-noise": "^3.2.0",
-        "seedrandom": "^2.4.2",
-        "stats.js": "^0.17.0",
-        "three": "^0.84.0"
-    }
+  "name": "terragen",
+  "version": "0.0.1",
+  "description": "A voronoi based terrain generator library",
+  "main": "./dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "budo src/examples/render.js --live -- -t babelify",
+    "doc": "jsdoc src/lib/*.js -d docs",
+    "build": "babel src -d dist",
+    "build-bundle": "browserify src/examples/render.js -t babelify | ./node_modules/.bin/uglifyjs > bundle.js",
+    "prepublish": "npm run build"
+  },
+  "author": "Andre Esteve",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andreesteve/terragen.git"
+  },
+  "bugs": {
+    "url": "https://github.com/andreesteve/terragen/issues"
+  },
+  "keywords": [
+    "map",
+    "terrain",
+    "generator",
+    "map generator",
+    "terrain generator",
+    "voronoi"
+  ],
+  "devDependencies": {
+    "babel": "^6.5.2",
+    "babel-cli": "^6.22.2",
+    "babel-preset-env": "^1.1.8",
+    "babelify": "^7.3.0",
+    "budo": "^9.4.5",
+    "jsdoc": "^3.4.3",
+    "uglifyjs": "^2.4.10"
+  },
+  "dependencies": {
+    "d3": "^4.4.3",
+    "exdat": "^0.6.2",
+    "fast-simplex-noise": "^3.2.0",
+    "seedrandom": "^2.4.2",
+    "stats.js": "^0.17.0",
+    "three": "^0.84.0"
+  }
 }
